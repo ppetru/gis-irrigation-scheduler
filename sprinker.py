@@ -2,12 +2,13 @@
 
 import argparse
 import asyncio
+import configparser
+import pickle
 import psycopg
 from pyopensprinkler import Controller as OpenSprinklerController
 from ortools.sat.python import cp_model
 from collections import namedtuple
 from math import lcm
-from configparser import ConfigParser
 
 Line = namedtuple('Line', ('name', 'interval', 'duration', 'splash'))
 
@@ -207,10 +208,11 @@ def print_schedule(day_plan, line_plan):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_file', '-c', default='config.ini', help='Where to read configuration from. Defaults to config.ini')
+    parser.add_argument('--write_file', '-w', help='Generate schedule and write it to this file')
     args = parser.parse_args()
-
-    config = ConfigParser()
+    config = configparser.ConfigParser()
     config.read(args.config_file)
+
     loop = asyncio.get_event_loop()
     #loop.run_until_complete(init_sprinklers())
     lines = get_lines(config)
@@ -219,6 +221,9 @@ def main():
         print('No solution found.')
     else:
         print_schedule(*schedule)
+        if args.write_file is not None:
+            with open(args.write_file, 'wb') as f:
+                pickle.dump(schedule, f)
 
 
 if __name__ == '__main__':
