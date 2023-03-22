@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import asyncio
 import psycopg
 from pyopensprinkler import Controller as OpenSprinklerController
@@ -204,8 +205,12 @@ def print_schedule(day_plan, line_plan):
                 print()
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config_file', '-c', default='config.ini', help='Where to read configuration from. Defaults to config.ini')
+    args = parser.parse_args()
+
     config = ConfigParser()
-    config.read('config.ini')
+    config.read(args.config_file)
     loop = asyncio.get_event_loop()
     #loop.run_until_complete(init_sprinklers())
     lines = get_lines(config)
