@@ -209,6 +209,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_file', '-c', default='config.ini', help='Where to read configuration from. Defaults to config.ini')
     parser.add_argument('--write_file', '-w', help='Generate schedule and write it to this file')
+    parser.add_argument('--print', '-p', default=False, action='store_true', help='Print schedule')
     args = parser.parse_args()
     config = configparser.ConfigParser()
     config.read(args.config_file)
@@ -220,7 +221,8 @@ def main():
     if not schedule:
         print('No solution found.')
     else:
-        print_schedule(*schedule)
+        if args.print:
+            print_schedule(*schedule)
         if args.write_file is not None:
             with open(args.write_file, 'wb') as f:
                 pickle.dump(schedule, f)
