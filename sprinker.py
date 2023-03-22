@@ -209,6 +209,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_file', '-c', default='config.ini', help='Where to read configuration from. Defaults to config.ini')
     parser.add_argument('--write_file', '-w', help='Generate schedule and write it to this file')
+    parser.add_argument('--read_file', '-r', help='Read schedule from this file instead of generating it')
     parser.add_argument('--print', '-p', default=False, action='store_true', help='Print schedule')
     args = parser.parse_args()
     config = configparser.ConfigParser()
@@ -217,7 +218,11 @@ def main():
     loop = asyncio.get_event_loop()
     #loop.run_until_complete(init_sprinklers())
     lines = get_lines(config)
-    schedule = plan_schedule(config, lines)
+    if args.read_file is not None:
+        with open(args.read_file, 'rb') as f:
+            schedule = pickle.load(f)
+    else:
+        schedule = plan_schedule(config, lines)
     if not schedule:
         print('No solution found.')
     else:
