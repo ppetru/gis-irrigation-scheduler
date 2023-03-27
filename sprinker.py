@@ -12,17 +12,39 @@ from math import lcm
 
 Line = namedtuple('Line', ('name', 'interval', 'duration', 'splash'))
 
-async def init_sprinklers():
-    controller = OpenSprinklerController(CONTROLLER, PASSWORD)
-    await controller.refresh()
+async def create_program(name, controller, stations):
     #p = await controller.create_program("test")
-    #print(p)
-    print(controller.stations)
-    for p in controller.programs.values():
-        #print(p.name)
-        if p.name == "test":
-            prog = p
-    print(prog.name, prog.index)
+    print(name, end=': ')
+    for station, duration in stations:
+        print(station, duration, end=', ')
+    print()
+
+def stations_and_durations(station_map, lines):
+    result = []
+    for line in lines:
+        result.append((station_map[line.name], line.duration * 60))
+    return result
+
+async def upload_schedule(config, day_plan):
+    controller = OpenSprinklerController(
+            config['opensprinkler']['controller'],
+            config['opensprinkler']['password'])
+    await controller.refresh()
+    station_map = {}
+    for id, station in controller.stations.items():
+        if station.enabled:
+            station_map[station.name] = id
+    name_prefix = config['irrigation'].get('program_name_prefix', '')
+    if name_prefix:
+        name_prefix += ' '
+
+    for day_num, slot_plan in enumerate(day_plan, start=1):
+        for slot_num, line_plan in enumerate(slot_plan, start=1):
+            station_plan = stations_and_durations(station_map, line_plan)
+            slot_name = config['irrigation'].get(f'slot_{slot_num}_name', f'slot {slot_num}')
+            name = f"{name_prefix}Day {day_num} {slot_name}"
+            await create_program(name, controller, station_plan)
+
     await controller.session_close()
 
 def get_lines(config):
@@ -211,26 +233,31 @@ def main():
     parser.add_argument('--write_file', '-w', help='Generate schedule and write it to this file')
     parser.add_argument('--read_file', '-r', help='Read schedule from this file instead of generating it')
     parser.add_argument('--print', '-p', default=False, action='store_true', help='Print schedule')
+    parser.add_argument('--upload', '-u', default=False, action='store_true', help='Upload schedule to controller')
     args = parser.parse_args()
     config = configparser.ConfigParser()
     config.read(args.config_file)
 
-    loop = asyncio.get_event_loop()
-    #loop.run_until_complete(init_sprinklers())
     lines = get_lines(config)
+
     if args.read_file is not None:
         with open(args.read_file, 'rb') as f:
             schedule = pickle.load(f)
     else:
         schedule = plan_schedule(config, lines)
     if not schedule:
-        print('No solution found.')
-    else:
-        if args.print:
-            print_schedule(*schedule)
-        if args.write_file is not None:
-            with open(args.write_file, 'wb') as f:
-                pickle.dump(schedule, f)
+        print('No schedule found.')
+        return
+
+    if args.print:
+        print_schedule(*schedule)
+
+    if args.write_file is not None:
+        with open(args.write_file, 'wb') as f:
+            pickle.dump(schedule, f)
+
+    if args.upload:
+        asyncio.run(upload_schedule(config, schedule[0]))
 
 
 if __name__ == '__main__':
