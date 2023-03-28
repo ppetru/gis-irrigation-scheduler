@@ -5,7 +5,7 @@ import asyncio
 import configparser
 import pickle
 import psycopg
-from pyopensprinkler import Controller as OpenSprinklerController
+import pyopensprinkler
 from ortools.sat.python import cp_model
 from collections import namedtuple
 from math import lcm
@@ -14,7 +14,7 @@ Line = namedtuple('Line', ('name', 'interval', 'duration', 'splash'))
 
 
 async def get_controller(config):
-    controller = OpenSprinklerController(
+    controller = pyopensprinkler.Controller(
             config['opensprinkler']['controller'],
             config['opensprinkler']['password'])
     await controller.refresh()
@@ -28,18 +28,26 @@ def get_program(controller, name):
 
 
 async def create_program(controller, name, stations):
-    print(name, end=': ')
-    for station, duration in stations:
-        print(station, duration, end=', ')
-    print()
+    print(name, end=': create')
     await controller.create_program(name)
-    print(get_program(controller, name))
+    print(', durations', end='')
+    program = get_program(controller, name)
+    durations = []
+    for i in range(len(controller.stations)):
+        durations.append(stations.get(i, 0))
+    await program.set_station_durations(durations)
+    print(', enable', end='')
+    await program.set_enabled(True)
+    print(', weather', end='')
+    await program.set_use_weather_adjustments(1)
+    print(', schedule type', end='')
+    await program.set_program_schedule_type(3)  # interval-day
 
 
 def stations_and_durations(station_map, lines):
-    result = []
+    result = {}
     for line in lines:
-        result.append((station_map[line.name], line.duration * 60))
+        result[station_map[line.name]] = line.duration * 60
     return result
 
 
@@ -60,10 +68,10 @@ async def upload_schedule(config, day_plan):
 
     for day_num, slot_plan in enumerate(day_plan, start=1):
         for slot_num, line_plan in enumerate(slot_plan, start=1):
-            station_plan = stations_and_durations(station_map, line_plan)
+            stations = stations_and_durations(station_map, line_plan)
             slot_name = config['irrigation'].get(f'slot_{slot_num}_name', f'slot {slot_num}')
             name = f'{name_prefix}Day {day_num} {slot_name}'
-            await create_program(controller, name, station_plan)
+            await create_program(controller, name, stations)
 
     await controller.session_close()
 
