@@ -6,6 +6,7 @@ import configparser
 import pickle
 import psycopg
 import pyopensprinkler
+import sys
 from ortools.sat.python import cp_model
 from collections import namedtuple
 from math import lcm
@@ -42,6 +43,7 @@ async def create_program(controller, name, stations):
     await program.set_use_weather_adjustments(1)
     print(', schedule type', end='')
     await program.set_program_schedule_type(3)  # interval-day
+    sys.stdout.flush()
 
 
 def stations_and_durations(station_map, lines):
