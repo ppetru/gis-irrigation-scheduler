@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import configparser
+import json
 import pickle
 import psycopg
 import pyopensprinkler
@@ -35,27 +36,41 @@ def debugln(s):
     print(s)
     sys.stdout.flush()
 
-async def create_program(controller, name, stations, interval, remainder):
+async def create_program(controller, name, stations, interval, remainder, start_time):
     debug(name + ': ')
-    debug('create')
-    await controller.create_program(name)
-    program = get_program(controller, name)
-    debugln('bail')
-    return
-    debug(', durations')
+    # Manually build create program request, so that it can be done in one API call
+    # with all the parameters set to the desired values.
     durations = []
     for i in range(len(controller.stations)):
         durations.append(stations.get(i, 0))
-    await program.set_station_durations(durations)
-    debug(', enable')
-    await program.set_enabled(True)
-    debug(', weather')
-    await program.set_use_weather_adjustments(1)
-    debug(', schedule type')
-    await program.set_program_schedule_type(3)  # interval-day
-    debug(', schedule days')
-    await program.set_schedule_interval_days(interval, remainder)
-    debugln()
+    # bit 0: program enable 'en' bit (1: enabled; 0: disabled)
+    # bit 1: use weather adjustment 'uwt' bit (1: yes; 0: no)
+    # bit 2-3: odd/even restriction (0: none; 1: odd-day restriction; 2: even-day restriction; 3: undefined)
+    # bit 4-5: program schedule type (0: weekday; 1: undefined; 2: undefined; 3: interval day)
+    # bit 6: start time type (0: repeating type; 1: fixed time type)
+    # bit 7: enable date range (0: do not use date range; 1: use date range)
+    flag = int('01110011', 2)
+    # If (flag.bits[4..5]==3), this is an interval day schedule:
+    #   days1 stores the interval day, days0 stores the remainder (i.e. starting in day).
+    # For example, days1=3 and days0=0 means the program runs every 3 days, starting from today.
+    assert interval > 0, "Interval must be nonzero"
+    days0 = remainder
+    days1 = interval
+    start0 = start_time
+    start1 = start2 = start3 = -1
+    data = [
+        flag,
+        days0, days1,
+        [start0, start1, start2, start3],
+        durations
+    ]
+    params = {
+        'pid': -1,
+        'name': name,
+        'v': json.dumps(data).replace(' ', ''),
+    }
+    await controller.request("/cp", params)
+    debugln('done')
 
 
 def stations_and_durations(station_map, lines):
@@ -86,7 +101,8 @@ async def upload_schedule(config, day_plan):
             stations = stations_and_durations(station_map, line_plan)
             slot_name = config['irrigation'].get(f'slot_{slot_num}_name', f'slot {slot_num}')
             name = f'{name_prefix}Day {day_num} {slot_name}'
-            await create_program(controller, name, stations, num_days, day_num - 1)
+            slot_time = int(config['irrigation'].get(f'slot_{slot_num}_time'))
+            await create_program(controller, name, stations, num_days, day_num - 1, slot_time)
             await asyncio.sleep(1)
 
     await controller.session_close()
