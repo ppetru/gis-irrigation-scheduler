@@ -27,23 +27,35 @@ def get_program(controller, name):
         if program.name == name:
             return program
 
+def debug(s):
+    print(s, end='')
+    sys.stdout.flush()
 
-async def create_program(controller, name, stations):
-    print(name, end=': create')
+def debugln(s):
+    print(s)
+    sys.stdout.flush()
+
+async def create_program(controller, name, stations, interval, remainder):
+    debug(name + ': ')
+    debug('create')
     await controller.create_program(name)
-    print(', durations', end='')
     program = get_program(controller, name)
+    debugln('bail')
+    return
+    debug(', durations')
     durations = []
     for i in range(len(controller.stations)):
         durations.append(stations.get(i, 0))
     await program.set_station_durations(durations)
-    print(', enable', end='')
+    debug(', enable')
     await program.set_enabled(True)
-    print(', weather', end='')
+    debug(', weather')
     await program.set_use_weather_adjustments(1)
-    print(', schedule type', end='')
+    debug(', schedule type')
     await program.set_program_schedule_type(3)  # interval-day
-    sys.stdout.flush()
+    debug(', schedule days')
+    await program.set_schedule_interval_days(interval, remainder)
+    debugln()
 
 
 def stations_and_durations(station_map, lines):
@@ -67,13 +79,15 @@ async def upload_schedule(config, day_plan):
         if station.enabled:
             station_map[station.name] = id
     name_prefix = get_name_prefix(config)
+    num_days = len(day_plan)
 
     for day_num, slot_plan in enumerate(day_plan, start=1):
         for slot_num, line_plan in enumerate(slot_plan, start=1):
             stations = stations_and_durations(station_map, line_plan)
             slot_name = config['irrigation'].get(f'slot_{slot_num}_name', f'slot {slot_num}')
             name = f'{name_prefix}Day {day_num} {slot_name}'
-            await create_program(controller, name, stations)
+            await create_program(controller, name, stations, num_days, day_num - 1)
+            await asyncio.sleep(1)
 
     await controller.session_close()
 
