@@ -12,7 +12,7 @@ from ortools.sat.python import cp_model
 from collections import namedtuple
 from math import lcm
 
-Line = namedtuple('Line', ('name', 'interval', 'duration', 'splash'))
+Line = namedtuple('Line', ('name', 'interval', 'duration', 'group', 'splash'))
 
 
 async def get_controller(config):
@@ -134,10 +134,10 @@ async def delete_autogen(config):
 def get_lines(config):
     with psycopg.connect(config['database']['config']) as conn:
         conn.execute("SET client_encoding TO utf8")
-        cur = conn.execute("SELECT name, interval, duration, splash FROM " + config['database']['table'] + " WHERE interval IS NOT NULL")
+        cur = conn.execute("SELECT name, interval, duration, \"group\", splash FROM " + config['database']['table'] + " WHERE interval IS NOT NULL")
         # convert the splash list into a tuple so we can use Line as dict keys
         lines = list(map(
-            lambda x: Line._make(x[:3] + (tuple(x[3]),)),
+            lambda x: Line._make(x[:4] + (tuple(x[4]),)),
             cur.fetchall()))
     return lines
 
@@ -185,6 +185,21 @@ def plan_schedule(config, lines):
             for l in all_lines:
                 slot_tasks.append(lines[l].duration * slots[(l, d, s)])
             model.Add(sum(slot_tasks) <= slot_minutes)
+
+    # equal time for each group within a slot
+    # TODO: make the groups and group combos configurable
+    group_mismatch = []
+    for d in all_days:
+        for s in all_slots:
+            group_tasks = {
+                'A': [],
+                'B': [],
+            }
+            for l in all_lines:
+                group_tasks[lines[l].group].append(lines[l].duration * slots[(l, d, s)])
+            group_limit = slot_minutes // 2
+            model.Add(sum(group_tasks['A']) <= group_limit)
+            model.Add(sum(group_tasks['B']) <= group_limit)
 
     # meet line targets
     for l in all_lines:
@@ -234,6 +249,24 @@ def plan_schedule(config, lines):
 #    objective = model.NewIntVar(0, slot_minutes, "")
 #    model.AddMinEquality(objective, slotload)
 #    model.Maximize(objective)
+
+   # minimize group mismatch
+    groupdiff = []
+    for d in all_days:
+        for s in all_slots:
+            group_tasks = {
+                'A': [],
+                'B': [],
+            }
+            for l in all_lines:
+                group_tasks[lines[l].group].append(lines[l].duration * slots[(l, d, s)])
+            group_limit = slot_minutes // 2
+            tmp = model.NewIntVar(0, slot_minutes, "")
+            model.AddAbsEquality(tmp, sum(group_tasks['A']) - sum(group_tasks['B']))
+            groupdiff.append(tmp)
+    objective = model.NewIntVar(0, slot_minutes, "")
+    model.AddMaxEquality(objective, groupdiff)
+    model.Minimize(objective)
 
     # minimize overlapping splash
     splashes = [0]
@@ -286,11 +319,15 @@ def print_schedule(day_plan, line_plan):
         print(f'  Day {i}:')
         for j, slot in enumerate(day):
             slot_duration = 0
+            group_duration = {}
             for line in slot:
                 slot_duration += line.duration
+                group_duration[line.group] = group_duration.get(line.group, 0) + line.duration
             print(f'    Slot {j} ({slot_duration : >3} minutes):')
-            for line in slot:
-                print(f'      {line.name : >25} ({line.duration}m every {line.interval}d)')
+            for group in sorted(group_duration.keys()):
+                print(f'      Group {group} ({group_duration[group]} minutes):')
+                for line in filter(lambda l: l.group == group, slot):
+                    print(f'      {line.name : >25} ({line.duration}m every {line.interval}d)')
     print()
     print('*** Line plan:')
     for line, plan in line_plan.items():
