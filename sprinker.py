@@ -198,7 +198,9 @@ def plan_schedule(config, lines):
             for l in all_lines:
                 group_tasks[lines[l].group].append(lines[l].duration * slots[(l, d, s)])
             group_limit = slot_minutes // 2
+            model.Add(sum(group_tasks['A']) > 0)
             model.Add(sum(group_tasks['A']) <= group_limit)
+            model.Add(sum(group_tasks['B']) > 0)
             model.Add(sum(group_tasks['B']) <= group_limit)
 
     # meet line targets
