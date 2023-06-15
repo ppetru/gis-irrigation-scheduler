@@ -242,15 +242,15 @@ def plan_schedule(config, lines):
     ## soft constraints
 
     # even out slot load
-#    slotload = []
-#    for d in all_days:
-#        for s in all_slots:
-#            tmp = model.NewIntVar(0, slot_minutes, "")
-#            model.Add(tmp == sum([(slots[(l, d, s)]*lines[l].duration) for l in all_lines]))
-#            slotload.append(tmp)
-#    objective = model.NewIntVar(0, slot_minutes, "")
-#    model.AddMinEquality(objective, slotload)
-#    model.Maximize(objective)
+    slotload = []
+    for d in all_days:
+        for s in all_slots:
+            tmp = model.NewIntVar(0, slot_minutes, "")
+            model.Add(tmp == sum([(slots[(l, d, s)]*lines[l].duration) for l in all_lines]))
+            slotload.append(tmp)
+    objective = model.NewIntVar(0, slot_minutes, "")
+    model.AddMinEquality(objective, slotload)
+    model.Maximize(objective)
 
    # minimize group mismatch
     groupdiff = []
