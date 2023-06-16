@@ -74,9 +74,30 @@ async def create_program(controller, name, stations, interval, remainder, start_
 
 
 def stations_and_durations(station_map, lines):
+    groups = {}
+    scale_group = None
+    scale_factor = 1
+    # ensure that group durations match
+    for line in lines:
+        groups[line.group] = groups.get(line.group, 0) + line.duration
+    # TODO: assuming two groups
+    values = list(groups.values())
+    keys = list(groups.keys())
+    if values[0] != values[1]:
+        if values[0] < values[1]:
+            scale_group = keys[0]
+            scale_factor = values[1] / values[0]
+        else:
+            scale_group = keys[1]
+            scale_factor = values[0] / values[1]
     result = {}
     for line in lines:
-        result[station_map[line.name]] = line.duration * 60
+        duration = line.duration * 60
+        if line.group == scale_group:
+            debug(f"Scaling {line.name}: {duration / 60 :g}m -> ")
+            duration *= scale_factor
+            debugln(f"{duration / 60 :g}m")
+        result[station_map[line.name]] = duration
     return result
 
 
