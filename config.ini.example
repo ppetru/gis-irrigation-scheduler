@@ -1,0 +1,27 @@
+[opensprinkler]
+controller = https://example.com
+password = example
+
+[database]
+config = dbname='example' host=example user='example' password='example'
+table = "public"."example"
+
+[irrigation]
+daily_slots = 2
+slot_minutes = 240
+program_name_prefix = Autogen
+# Start times support using sunrise or sunset with a maximum offset value of +/- 4 hours in minute granularity:
+#   - If bits 13 and 14 are both cleared (i.e. 0), this defines the start time in terms of minutes since midnight.
+#   - If bit 13 is 1, this defines sunset time as start time.
+#   - Similarly, if bit 14 is 1, this defines sunrise time.
+#   - If either bit 13 or 14 is 1, the remaining 12 bits then define the offset:
+#     - bit 12 is the sign (if true, it is negative);
+#     - the absolute value of the offset is the remaining 11 bits (i.e. start_time&0x7FF).
+# Examples:
+#   - sunrise = 16384
+#   - sunset = 8192
+#   - sunset-3h = 12468
+slot_1_name = AM
+slot_1_time = 16384
+slot_2_name = PM
+slot_2_time = 8192
