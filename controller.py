@@ -6,8 +6,8 @@ import sys
 
 async def get_controller(config):
     controller = pyopensprinkler.Controller(
-            config['opensprinkler']['controller'],
-            config['opensprinkler']['password'])
+        config["opensprinkler"]["controller"], config["opensprinkler"]["password"]
+    )
     await controller.refresh()
     return controller
 
@@ -19,7 +19,7 @@ def get_program(controller, name):
 
 
 def debug(s):
-    print(s, end='')
+    print(s, end="")
     sys.stdout.flush()
 
 
@@ -29,7 +29,7 @@ def debugln(s):
 
 
 async def create_program(controller, name, stations, interval, remainder, start_time):
-    debug(name + ': ')
+    debug(name + ": ")
     # Manually build create program request, so that it can be done in one API call
     # with all the parameters set to the desired values.
     durations = []
@@ -41,7 +41,7 @@ async def create_program(controller, name, stations, interval, remainder, start_
     # bit 4-5: program schedule type (0: weekday; 1: undefined; 2: undefined; 3: interval day)
     # bit 6: start time type (0: repeating type; 1: fixed time type)
     # bit 7: enable date range (0: do not use date range; 1: use date range)
-    flag = int('01110011', 2)
+    flag = int("01110011", 2)
     # If (flag.bits[4..5]==3), this is an interval day schedule:
     #   days1 stores the interval day, days0 stores the remainder (i.e. starting in day).
     # For example, days1=3 and days0=0 means the program runs every 3 days, starting from today.
@@ -50,19 +50,14 @@ async def create_program(controller, name, stations, interval, remainder, start_
     days1 = interval
     start0 = start_time
     start1 = start2 = start3 = -1
-    data = [
-        flag,
-        days0, days1,
-        [start0, start1, start2, start3],
-        durations
-    ]
+    data = [flag, days0, days1, [start0, start1, start2, start3], durations]
     params = {
-        'pid': -1,
-        'name': name,
-        'v': json.dumps(data).replace(' ', ''),
+        "pid": -1,
+        "name": name,
+        "v": json.dumps(data).replace(" ", ""),
     }
     await controller.request("/cp", params)
-    debugln('done')
+    debugln("done")
 
 
 def stations_and_durations(station_map, lines):
@@ -94,9 +89,9 @@ def stations_and_durations(station_map, lines):
 
 
 def get_name_prefix(config):
-    name_prefix = config['irrigation'].get('program_name_prefix', '')
+    name_prefix = config["irrigation"].get("program_name_prefix", "")
     if name_prefix:
-        name_prefix += ' '
+        name_prefix += " "
     return name_prefix
 
 
@@ -112,10 +107,14 @@ async def upload_schedule(config, day_plan):
     for day_num, slot_plan in enumerate(day_plan, start=1):
         for slot_num, line_plan in enumerate(slot_plan, start=1):
             stations = stations_and_durations(station_map, line_plan)
-            slot_name = config['irrigation'].get(f'slot_{slot_num}_name', f'slot {slot_num}')
-            name = f'{name_prefix}Day {day_num} {slot_name}'
-            slot_time = int(config['irrigation'].get(f'slot_{slot_num}_time'))
-            await create_program(controller, name, stations, num_days, day_num - 1, slot_time)
+            slot_name = config["irrigation"].get(
+                f"slot_{slot_num}_name", f"slot {slot_num}"
+            )
+            name = f"{name_prefix}Day {day_num} {slot_name}"
+            slot_time = int(config["irrigation"].get(f"slot_{slot_num}_time"))
+            await create_program(
+                controller, name, stations, num_days, day_num - 1, slot_time
+            )
             await asyncio.sleep(1)
 
     await controller.session_close()

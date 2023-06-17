@@ -3,8 +3,8 @@ from math import lcm
 
 
 def plan_schedule(config, lines):
-    num_slots = int(config['irrigation']['daily_slots'])
-    slot_minutes = int(config['irrigation']['slot_minutes'])
+    num_slots = int(config["irrigation"]["daily_slots"])
+    slot_minutes = int(config["irrigation"]["slot_minutes"])
 
     line_dict = {}
     for index, l in enumerate(lines):
@@ -35,7 +35,7 @@ def plan_schedule(config, lines):
     for l in all_lines:
         for d in all_days:
             for s in all_slots:
-                slots[(l, d, s)] = model.NewBoolVar('slot_l%id%is%i' % (l, d, s))
+                slots[(l, d, s)] = model.NewBoolVar("slot_l%id%is%i" % (l, d, s))
 
     ## hard constraints
 
@@ -53,16 +53,16 @@ def plan_schedule(config, lines):
     for d in all_days:
         for s in all_slots:
             group_tasks = {
-                'A': [],
-                'B': [],
+                "A": [],
+                "B": [],
             }
             for l in all_lines:
                 group_tasks[lines[l].group].append(lines[l].duration * slots[(l, d, s)])
             group_limit = slot_minutes // 2
-            model.Add(sum(group_tasks['A']) > 0)
-            model.Add(sum(group_tasks['A']) <= group_limit)
-            model.Add(sum(group_tasks['B']) > 0)
-            model.Add(sum(group_tasks['B']) <= group_limit)
+            model.Add(sum(group_tasks["A"]) > 0)
+            model.Add(sum(group_tasks["A"]) <= group_limit)
+            model.Add(sum(group_tasks["B"]) > 0)
+            model.Add(sum(group_tasks["B"]) <= group_limit)
 
     # meet line targets
     for l in all_lines:
@@ -107,25 +107,27 @@ def plan_schedule(config, lines):
     for d in all_days:
         for s in all_slots:
             tmp = model.NewIntVar(0, slot_minutes, "")
-            model.Add(tmp == sum([(slots[(l, d, s)]*lines[l].duration) for l in all_lines]))
+            model.Add(
+                tmp == sum([(slots[(l, d, s)] * lines[l].duration) for l in all_lines])
+            )
             slotload.append(tmp)
     objective = model.NewIntVar(0, slot_minutes, "")
     model.AddMinEquality(objective, slotload)
     model.Maximize(objective)
 
-   # minimize group mismatch
+    # minimize group mismatch
     groupdiff = []
     for d in all_days:
         for s in all_slots:
             group_tasks = {
-                'A': [],
-                'B': [],
+                "A": [],
+                "B": [],
             }
             for l in all_lines:
                 group_tasks[lines[l].group].append(lines[l].duration * slots[(l, d, s)])
             group_limit = slot_minutes // 2
             tmp = model.NewIntVar(0, slot_minutes, "")
-            model.AddAbsEquality(tmp, sum(group_tasks['A']) - sum(group_tasks['B']))
+            model.AddAbsEquality(tmp, sum(group_tasks["A"]) - sum(group_tasks["B"]))
             groupdiff.append(tmp)
     objective = model.NewIntVar(0, slot_minutes, "")
     model.AddMaxEquality(objective, groupdiff)
@@ -159,19 +161,19 @@ def plan_schedule(config, lines):
                 slot_plan = []
                 for l in all_lines:
                     if solver.Value(slots[(l, d, s)]):
-                       slot_plan.append(lines[l])
-                       line_plan.setdefault(lines[l], []).append((d, s))
+                        slot_plan.append(lines[l])
+                        line_plan.setdefault(lines[l], []).append((d, s))
                 day_plan.append(slot_plan)
             days_plan.append(day_plan)
         solution = [days_plan, line_plan]
     else:
         solution = None
 
-    print('\nStatistics')
-    print(f'  - status         : {solver.StatusName(status)}')
-    print(f'  - objective      : {solver.ObjectiveValue()}')
-    print(f'  - conflicts      : {solver.NumConflicts()}')
-    print(f'  - branches       : {solver.NumBranches()}')
-    print(f'  - wall time      : {solver.WallTime()} s')
+    print("\nStatistics")
+    print(f"  - status         : {solver.StatusName(status)}")
+    print(f"  - objective      : {solver.ObjectiveValue()}")
+    print(f"  - conflicts      : {solver.NumConflicts()}")
+    print(f"  - branches       : {solver.NumBranches()}")
+    print(f"  - wall time      : {solver.WallTime()} s")
     print()
     return solution
